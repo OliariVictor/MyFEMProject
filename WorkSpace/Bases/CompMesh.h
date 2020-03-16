@@ -10,13 +10,12 @@
 #include "pzfmatrix.h"
 #include "pzfstrmatrix.h"
 #include "tpzautopointer.h"
+#include "TPZAnalyticSolution.h"
 
 #include "pzcmesh.h"
 #include "mixedpoisson.h"
 #include "TPZNullMaterial.h"
 #include "pzbndcond.h"
-
-#include "Loads.h"
 
 class Computational{
 private:
@@ -45,7 +44,10 @@ public:
      * @param *gmesh Pointer to the geometric mesh
      * @param pOrder Integration order of the problem
      */
-    TPZCompMesh *CMesh_m(TPZGeoMesh *gmesh, int pOrder);
+
+    TPZCompMesh *CMesh_m(TPZGeoMesh *gmesh,int pOrder, TLaplaceExample1 &Laplace,TPZFMatrix<REAL>  K ={{1,0,0},{0,1,0},{0,0,1}}, TPZFMatrix<REAL>  invK ={{1,0,0},{0,1,0},{0,0,1}});
+
+    TPZCompMesh* CMeshProperFunc_m(TPZGeoMesh *gmesh, int pOrder,void (*f_source)(const TPZVec<REAL> &x, TPZVec<STATE> &val),void (*Sol_Exact)(const TPZVec<REAL> &x, TPZVec<STATE> &f, TPZFMatrix<STATE> &gradf));
 
     /**
      * @brief Creates a computational mesh according to the space HDiv

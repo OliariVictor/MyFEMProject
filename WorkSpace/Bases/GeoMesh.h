@@ -5,11 +5,15 @@
 #ifndef HDIVEX_GEOMESH_H
 #define HDIVEX_GEOMESH_H
 
+#include "pzeltype.h"
 #include "pzgmesh.h"
 #include "pzgeoelbc.h"
-#include "pzgengrid.h"
+#include "MMeshType.h"
+#include "TPZGenGrid2D.h"
 #include "TPZVTKGeoMesh.h"
 #include "pzcheckgeom.h"
+
+//#include "pzgengrid.h"
 
 class Geometry{
 private:

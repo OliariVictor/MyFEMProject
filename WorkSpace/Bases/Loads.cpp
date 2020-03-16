@@ -34,7 +34,7 @@ void Loads::F_source(const TPZVec<REAL> &x, TPZVec<STATE> &f){
     REAL xv = x[0];
     REAL yv = x[1];
 
-    STATE f_x = -8.0*Pi*Pi*sin(2.0*Pi*xv)*sin(2.0*Pi*yv);
+    STATE f_x = +8.0*Pi*Pi*sin(2.0*Pi*xv)*sin(2.0*Pi*yv);
 
     f[0] = f_x;
 }

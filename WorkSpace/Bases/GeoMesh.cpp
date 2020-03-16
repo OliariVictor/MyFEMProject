@@ -164,8 +164,12 @@ TPZGeoMesh* Geometry::gmeshHardWay(int nx, int ny, double hx, double hy){
 }
 
 TPZGeoMesh* Geometry::gmeshGenGrid(TPZVec<int> &nx, TPZVec<REAL> &x0, TPZVec<REAL> &x1,int matId){
-    TPZGenGrid genGrid(nx,x0,x1);
-    genGrid.SetElementType(ETriangle);
+    TPZGenGrid2D genGrid(nx,x0,x1);
+    MMeshType shape = MMeshType::ETriangular;
+    genGrid.SetElementType(shape);
+
+    //TPZGenGrid genGrid(nx,x0,x1);
+    //genGrid.SetElementType(ETriangle);
 
     TPZGeoMesh *gmesh = new TPZGeoMesh(); gmesh->SetDimension(2);
     genGrid.Read(gmesh,matId);
