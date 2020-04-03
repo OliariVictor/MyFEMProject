@@ -27,6 +27,7 @@ int main(){
     TLaplaceExample1 Lp(K,invK);
     Lp.fExact = TLaplaceExample1::ESinSin;
     Lp.fSignConvention= 1;
+    bool postproc = false;  // PostProc computational cost is too high
 
     //If enabled compute an Hdiv approximation for the specified mesh
     if(0) {
@@ -42,6 +43,6 @@ int main(){
 
         DarcyMixedHdiv errorRate(porder);
         //errorRate.ErrorRate(numRefinements,Lp);
-        errorRate.ErrorRate(numRefinements,Lp,K,invK);
+        errorRate.ErrorRate(numRefinements,Lp,K,invK,postproc);
     }
 }

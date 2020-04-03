@@ -17,10 +17,10 @@ Computational::Computational(){
     fneumann = 1;
 }
 
-TPZCompMesh* Computational::CMesh_m(TPZGeoMesh *gmesh, int pOrder, TLaplaceExample1 &Laplace,TPZFMatrix<REAL>  K, TPZFMatrix<REAL>  invK){
+TPZMultiphysicsCompMesh* Computational::CMesh_m(TPZGeoMesh *gmesh, int pOrder, TLaplaceExample1 &Laplace,TPZFMatrix<REAL>  K, TPZFMatrix<REAL>  invK){
 
     //Computational Mesh
-    TPZCompMesh *cmesh = new TPZCompMesh(gmesh);
+    TPZMultiphysicsCompMesh *cmesh = new TPZMultiphysicsCompMesh(gmesh);
     cmesh -> SetDefaultOrder(pOrder);
     cmesh -> SetDimModel(fdim);
     cmesh->SetAllCreateFunctionsMultiphysicElem();
@@ -58,9 +58,7 @@ TPZCompMesh* Computational::CMesh_m(TPZGeoMesh *gmesh, int pOrder, TLaplaceExamp
     BCond3->SetForcingFunction(Laplace.Exact());
     cmesh->InsertMaterialObject(BCond3); //Insere material na malha
 
-    cmesh->AutoBuild();
-    cmesh->ExpandSolution();
-
+    TPZManVector<int> active(2, 1);
     return cmesh;
 }
 
@@ -137,7 +135,7 @@ TPZCompMesh* Computational::CMesh_flux(TPZGeoMesh *gmesh, int pOrder) {
     cmesh->InsertMaterialObject(BCond3);
 
     cmesh->AutoBuild();
-    cmesh->ExpandSolution();
+    cmesh->InitializeBlock();
 
     return cmesh;
 }
@@ -152,8 +150,6 @@ TPZCompMesh* Computational::CMesh_p(TPZGeoMesh *gmesh, int pOrder){
 
     TPZNullMaterial *material = new TPZNullMaterial(fmatId); material->SetDimension(fdim);
     cmesh->InsertMaterialObject(material);
-
-    TPZFMatrix<STATE> val1(2,2,0.), val2(2,1,0.);
 
     cmesh->AutoBuild();
     cmesh->ExpandSolution();

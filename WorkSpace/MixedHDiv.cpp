@@ -3,7 +3,6 @@
 //
 
 #include "MixedHdiv.h"
-#include "pzinterpolationspace.h"
 
 DarcyMixedHdiv::DarcyMixedHdiv(int pOrder): fnx(2,1), fhx(2,1){
     fdim = 2;
@@ -27,7 +26,7 @@ DarcyMixedHdiv::~DarcyMixedHdiv(){
 
 }
 
-void DarcyMixedHdiv::ErrorRate(int numRefinement,TLaplaceExample1 &Laplace,TPZFMatrix<REAL>  K, TPZFMatrix<REAL>  invK){
+void DarcyMixedHdiv::ErrorRate(int numRefinement,TLaplaceExample1 &Laplace,TPZFMatrix<REAL>  K, TPZFMatrix<REAL>  invK, bool postproc){
     if (numRefinement < 0 || numRefinement > 5) {std::cout << "Invalid refinement number"; DebugStop();}
 
     TPZVec<REAL> x0(3,0),x1(3,0);
@@ -37,22 +36,24 @@ void DarcyMixedHdiv::ErrorRate(int numRefinement,TLaplaceExample1 &Laplace,TPZFM
     Geometry geom(fdim);
 
     int numErrors = 5;
-    int numthreads = 0;
     bool optimizeBandwidth = true; //Impede a renumeração das equacoes do problema (para obter o mesmo resultado do Oden)
 
     //Clearing file
-    if( remove( "Erro.txt" ) != 0 )
+    if( remove( "Erro.txt" ) != 0 || remove( "ErroHybrid.txt" ) != 0 )
         perror( "Error deleting file" );
     else
         puts( "Error log successfully deleted" );
 
     //Defining outstream file
     ofstream ErroOut("Erro.txt",std::ofstream::app);
-    ErroOut << "----------COMPUTED ERRORS----------\n";
+    ofstream ErroOutHybrid("ErroHybrid.txt",std::ofstream::app);
+    ErroOut << "----------COMPUTED ERRORS----------\n"; ErroOut.flush();
+    ErroOutHybrid << "----------COMPUTED ERRORS (HYBRID)----------\n"; ErroOutHybrid.flush();
 
-    TPZVec<REAL> ErrorsLog(numErrors,-1),rate(3,-1);
+    TPZVec<REAL> ErrorsLog(numErrors,-1), ErrorsLogHybrid(numErrors,-1),rate(3,-1);
     REAL hLog = -1, h;
 
+    bool last = false;
     int exp = 1; //Initial exponent of mesh refinement (numElem = 2*2^exp)
     for(int i =0 ; i <numRefinement+1 ; i++){
         fnx[0] = fnx[1] = exp;
@@ -63,74 +64,160 @@ void DarcyMixedHdiv::ErrorRate(int numRefinement,TLaplaceExample1 &Laplace,TPZFM
         Computational comp;
         TPZCompMesh *cmesh_f = comp.CMesh_flux(gmesh,fPOrder);
         TPZCompMesh *cmesh_p = comp.CMesh_p(gmesh,fPOrder);
-        TPZCompMesh *cmesh_m = comp.CMesh_m(gmesh,fPOrder,Laplace,K,invK);
+        TPZMultiphysicsCompMesh *cmesh_m = comp.CMesh_m(gmesh,fPOrder,Laplace,K,invK);
 
+        TPZManVector<int> active(2, 1);
         TPZManVector<TPZCompMesh *, 2> meshvector(2);
         meshvector[0] = cmesh_f;
         meshvector[1] = cmesh_p;
-        TPZBuildMultiphysicsMesh::AddElements(meshvector, cmesh_m);
-        TPZBuildMultiphysicsMesh::AddConnects(meshvector, cmesh_m);
+        cmesh_m->BuildMultiphysicsSpace(active,meshvector);
+        cmesh_m->LoadReferences();
+        cmesh_m->InitializeBlock();
 
-        //Resolvendo o Sistema:
-        TPZAnalysis an(cmesh_m, optimizeBandwidth); //Cria objeto de análise que gerenciará a analise do problema
-        TPZSkylineStructMatrix matskl(cmesh_m); //caso simetrico ***
+        std::ofstream oGmesh("gmeshMixed.txt");
+        gmesh->Print(oGmesh);
 
-        matskl.SetNumThreads(numthreads);
-        an.SetStructuralMatrix(matskl);
-        TPZStepSolver<STATE> step;
-        step.SetDirect(ELDLt);
-        an.SetSolver(step);
-        an.Assemble();//Assembla a matriz de rigidez (e o vetor de carga) global
-        an.Solve();
+        std::ofstream pressure("cmesh_p.txt");
+        cmesh_p->Print(pressure);
 
-        //Calculo do erro
-        std::cout << "Computing Error " << std::endl;
-        TPZManVector<REAL,6> Errors;
+        std::ofstream flux("cmesh_f.txt");
+        cmesh_f->Print(flux);
 
-        an.SetExact(Laplace.ExactSolution());
-        bool store_errors = false;
-        an.PostProcessError(Errors, store_errors, ErroOut);
+        if(i == numRefinement && postproc) last = true;
 
-        if(ErrorsLog[0] !=-1){
-            for(int j =0; j < 3 ; j++) {
-                rate[j] = (log10(Errors[j]) - log10(ErrorsLog[j]))/(log10(h)-log10(hLog));
-                ErroOut << "rate " << j << ": " << rate[j] << std::endl;
-            }
+        if(1) {
+            SolveMixedProblem(cmesh_m, optimizeBandwidth, Laplace, ErrorsLog, rate, gmesh, hLog, h,last);
+            std::ofstream mixed("MultiphysicsCompMesh.txt");
+            cmesh_m->ShortPrint(mixed);
+            std::ofstream mixedP("MultiphysicsCompMeshPrint.txt");
+            cmesh_m->Print(mixedP);
         }
 
-        ErroOut << "h = " << 1./(fnx[0]) << std::endl;
+        if(1){
+            TPZHybridizeHDiv hybrid;
+            TPZMultiphysicsCompMesh *HybridMesh = hybrid.Hybridize(cmesh_m);
+            HybridMesh->CleanUpUnconnectedNodes();
+            HybridMesh->AdjustBoundaryElements();
 
-        std::cout << "Post Processing " << std::endl;
-        std::string plotfile("DarcyP.vtk");
-        TPZStack<std::string> scalnames, vecnames;
-        scalnames.Push("Pressure");
-        scalnames.Push("ExactPressure");
-        vecnames.Push("Flux");
-        vecnames.Push("ExactFlux");
-        //        vecnames.Push("V_exactBC");
+            std::ofstream oGmeshH("gmeshHybrid.txt");
+            gmesh->Print(oGmeshH);
+            ofstream gvtk("gm.vtk");
+            TPZVTKGeoMesh::PrintGMeshVTK(gmesh, gvtk);
 
+            SolveHybridProblem(HybridMesh, optimizeBandwidth, Laplace, ErrorsLogHybrid, rate, gmesh, hLog, h,last);
 
-        int postProcessResolution = 4; //  keep low as possible
-
-        int dim = gmesh->Dimension();
-        an.DefineGraphMesh(dim,scalnames,vecnames,plotfile);
-        an.PostProcess(postProcessResolution,dim);
-
-        std::cout << "FINISHED!" << std::endl;
-
-        for(int i =0; i < Errors.size();i++) ErrorsLog[i] = Errors[i];
-        Errors.clear();
+            std::ofstream hybred("HybridMultiphysicsCompMesh.txt");
+            HybridMesh->ShortPrint(hybred);
+            std::ofstream hybredP("HybridMultiphysicsCompMeshPrint.txt");
+            HybridMesh->Print(hybredP);
+        }
         hLog = h;
         exp *=2;
-
-        //Printing Multiphisics mesh after the insertion of the atomic meshes
-    std::ofstream filecmfp("TPZMultiphysicsCompEl<TGeometry>_Print.txt"); //Impressão da malha computacional multifísica (formato txt)
-    std::ofstream filecmfsp("TPZMultiphysicsCompEl<TGeometry>_ShortPrint.txt"); //Impressão da malha computacional multifísica (formato txt)
-
-    cmesh_m->ShortPrint(filecmfsp);
-    cmesh_m->Print(filecmfp);
-
     }
+}
+
+void DarcyMixedHdiv::SolveHybridProblem(TPZCompMesh *mesh, bool optBW, TLaplaceExample1 &Laplace, TPZVec<REAL> &errorsLog, TPZVec<REAL> &rt, TPZGeoMesh* gmesh, REAL &hLog, REAL &h,bool &last){
+    ofstream erroOutput("ErroHybrid.txt",std::ofstream::app);
+
+    TPZAnalysis an(mesh, optBW); //Cria objeto de análise que gerenciará a analise do problema
+    TPZSkylineStructMatrix matskl(mesh); //caso simetrico ***
+
+    int numthreads = 0;
+    matskl.SetNumThreads(numthreads);
+    an.SetStructuralMatrix(matskl);
+    TPZStepSolver<STATE> step;
+    step.SetDirect(ELDLt);
+    an.SetSolver(step);
+    an.Assemble();//Assembla a matriz de rigidez (e o vetor de carga) global
+    an.Solve();
+
+    //Calculo do erro
+    std::cout << "Computing Error " << std::endl;
+    TPZManVector<REAL,6> Errors;
+
+    an.SetExact(Laplace.ExactSolution());
+    bool store_errors = false;
+    an.PostProcessError(Errors, store_errors, erroOutput);
+
+    if(errorsLog[0] !=-1){
+        for(int j =0; j < 3 ; j++) {
+            rt[j] = (log10(Errors[j]) - log10(errorsLog[j]))/(log10(h)-log10(hLog));
+            erroOutput << "rate " << j << ": " << rt[j] << std::endl;
+        }
+    }
+
+    erroOutput << "h = " << 1./(fnx[0]) << std::endl;
+
+    if(last) {
+        int dim = gmesh->Dimension();
+        string Name = "Mixed.vtk";
+        PostProcess(Name,dim,an);
+    }
+
+    std::cout << "FINISHED!" << std::endl;
+
+    for(int i =0; i < Errors.size();i++) errorsLog[i] = Errors[i];
+    Errors.clear();
+}
+
+void DarcyMixedHdiv::SolveMixedProblem(TPZCompMesh *mesh, bool optBW, TLaplaceExample1 &Laplace, TPZVec<REAL> &errorsLog, TPZVec<REAL> &rt, TPZGeoMesh* gmesh, REAL &hLog, REAL &h,bool &last){
+    ofstream erroOutput("Erro.txt",std::ofstream::app);
+
+    TPZAnalysis an(mesh, optBW); //Cria objeto de análise que gerenciará a analise do problema
+    TPZSkylineStructMatrix matskl(mesh); //caso simetrico ***
+
+    int numthreads = 0;
+    matskl.SetNumThreads(numthreads);
+    an.SetStructuralMatrix(matskl);
+    TPZStepSolver<STATE> step;
+    step.SetDirect(ELDLt);
+    an.SetSolver(step);
+    an.Assemble();//Assembla a matriz de rigidez (e o vetor de carga) global
+    an.Solve();
+
+    //Calculo do erro
+    std::cout << "Computing Error " << std::endl;
+    TPZManVector<REAL,6> Errors;
+
+    an.SetExact(Laplace.ExactSolution());
+    bool store_errors = false;
+    an.PostProcessError(Errors, store_errors, erroOutput);
+
+    if(errorsLog[0] !=-1){
+        for(int j =0; j < 3 ; j++) {
+            rt[j] = (log10(Errors[j]) - log10(errorsLog[j]))/(log10(h)-log10(hLog));
+            erroOutput << "rate " << j << ": " << rt[j] << std::endl;
+        }
+    }
+
+    erroOutput << "h = " << 1./(fnx[0]) << std::endl;
+
+    if(last) {
+        int dim = gmesh->Dimension();
+        string Name = "Hybrid.vtk";
+        PostProcess(Name,dim,an);
+    }
+
+    std::cout << "FINISHED!" << std::endl;
+
+    for(int i =0; i < Errors.size();i++) errorsLog[i] = Errors[i];
+    Errors.clear();
+}
+
+void DarcyMixedHdiv::PostProcess(string fileName, int dim, TPZAnalysis &analysis){
+
+    std::cout << "Post Processing " << std::endl;
+    std::string plotfile(fileName);
+    TPZStack<std::string> scalnames, vecnames;
+    scalnames.Push("Pressure");
+    scalnames.Push("ExactPressure");
+    vecnames.Push("Flux");
+    vecnames.Push("ExactFlux");
+
+    int postProcessResolution = 4; //  keep low as possible
+
+    analysis.DefineGraphMesh(dim,scalnames,vecnames,plotfile);
+    analysis.PostProcess(postProcessResolution,dim);
 }
 
 void DarcyMixedHdiv::ErrorRateProperFunc(int numRefinement,void (*f_source)(const TPZVec<REAL> &x, TPZVec<STATE> &val),void (*Sol_Exact)(const TPZVec<REAL> &x, TPZVec<STATE> &f, TPZFMatrix<STATE> &gradf)){

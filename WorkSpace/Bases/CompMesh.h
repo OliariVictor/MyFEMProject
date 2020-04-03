@@ -12,6 +12,7 @@
 #include "tpzautopointer.h"
 #include "TPZAnalyticSolution.h"
 
+#include "TPZMultiphysicsCompMesh.h"
 #include "pzcmesh.h"
 #include "mixedpoisson.h"
 #include "TPZNullMaterial.h"
@@ -45,7 +46,7 @@ public:
      * @param pOrder Integration order of the problem
      */
 
-    TPZCompMesh *CMesh_m(TPZGeoMesh *gmesh,int pOrder, TLaplaceExample1 &Laplace,TPZFMatrix<REAL>  K ={{1,0,0},{0,1,0},{0,0,1}}, TPZFMatrix<REAL>  invK ={{1,0,0},{0,1,0},{0,0,1}});
+    TPZMultiphysicsCompMesh *CMesh_m(TPZGeoMesh *gmesh,int pOrder, TLaplaceExample1 &Laplace,TPZFMatrix<REAL>  K ={{1,0,0},{0,1,0},{0,0,1}}, TPZFMatrix<REAL>  invK ={{1,0,0},{0,1,0},{0,0,1}});
 
     TPZCompMesh* CMeshProperFunc_m(TPZGeoMesh *gmesh, int pOrder,void (*f_source)(const TPZVec<REAL> &x, TPZVec<STATE> &val),void (*Sol_Exact)(const TPZVec<REAL> &x, TPZVec<STATE> &f, TPZFMatrix<STATE> &gradf));
 

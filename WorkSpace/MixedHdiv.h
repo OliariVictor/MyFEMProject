@@ -8,11 +8,13 @@
 #include "pzanalysis.h"
 #include "pzstepsolver.h"
 #include "pzvisualmatrix.h"
+#include "TPZSkylineNSymStructMatrix.h"
+#include "TPZAnalyticSolution.h"
 
 #include "TPZVTKGeoMesh.h"
-#include "TPZSkylineNSymStructMatrix.h"
 #include "pzbuildmultiphysicsmesh.h"
-#include "TPZAnalyticSolution.h"
+#include "TPZMultiphysicsCompMesh.h"
+#include "TPZHybridizeHDiv.h"
 
 #include "pzvec.h"
 #include "pzstack.h"
@@ -42,7 +44,13 @@ public:
 
     void SolveMixedHdivProperFunc(void (*f_source)(const TPZVec<REAL> &x, TPZVec<STATE> &val),void (*Sol_Exact)(const TPZVec<REAL> &x, TPZVec<STATE> &f, TPZFMatrix<STATE> &gradf));
 
-    void ErrorRate(int numRefinement,TLaplaceExample1 &,TPZFMatrix<REAL>  K ={{1,0,0},{0,1,0},{0,0,1}}, TPZFMatrix<REAL>  invK ={{1,0,0},{0,1,0},{0,0,1}});
+    void SolveMixedProblem(TPZCompMesh *mesh, bool optBW, TLaplaceExample1 &Laplace, TPZVec<REAL> &errorsLog, TPZVec<REAL> &rt, TPZGeoMesh* gmesh, REAL &hLog, REAL &h,bool &last);
+
+    void SolveHybridProblem(TPZCompMesh *mesh, bool optBW, TLaplaceExample1 &Laplace, TPZVec<REAL> &errorsLog, TPZVec<REAL> &rt, TPZGeoMesh* gmesh, REAL &hLog, REAL &h, bool &last);
+
+    void PostProcess(string fileName, int dim, TPZAnalysis &analysis);
+
+    void ErrorRate(int numRefinement,TLaplaceExample1 &,TPZFMatrix<REAL>  K ={{1,0,0},{0,1,0},{0,0,1}}, TPZFMatrix<REAL>  invK ={{1,0,0},{0,1,0},{0,0,1}}, bool postproc = false);
 
     void ErrorRateProperFunc(int numRefinement,void (*f_source)(const TPZVec<REAL> &x, TPZVec<STATE> &val),void (*Sol_Exact)(const TPZVec<REAL> &x, TPZVec<STATE> &f, TPZFMatrix<STATE> &gradf));
 };

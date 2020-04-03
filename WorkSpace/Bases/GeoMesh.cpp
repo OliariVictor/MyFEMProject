@@ -165,7 +165,7 @@ TPZGeoMesh* Geometry::gmeshHardWay(int nx, int ny, double hx, double hy){
 
 TPZGeoMesh* Geometry::gmeshGenGrid(TPZVec<int> &nx, TPZVec<REAL> &x0, TPZVec<REAL> &x1,int matId){
     TPZGenGrid2D genGrid(nx,x0,x1);
-    MMeshType shape = MMeshType::ETriangular;
+    MMeshType shape = MMeshType::EQuadrilateral;
     genGrid.SetElementType(shape);
 
     //TPZGenGrid genGrid(nx,x0,x1);
